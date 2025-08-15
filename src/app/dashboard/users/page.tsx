@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import {
   Users, 
   Search, 
   Filter,
-  MoreHorizontal,
   Mail,
   Phone,
   MapPin,
@@ -23,11 +22,16 @@ import {
 
 export default function UsersPage() {
   const { users, isLoading, error, fetchUsers } = useUsers();
+  
+  // State for search and filter
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Check authentication and fetch data
+  
   useEffect(() => {
     const fetchData = async () => {
-      // Check authentication
+      
       const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
       const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       
@@ -37,14 +41,14 @@ export default function UsersPage() {
         return;
       }
 
-      // Fetch users data
+     
       try {
         console.log('Fetching users data...');
         await fetchUsers();
         console.log('Users data fetched successfully');
       } catch (error) {
         console.error('Error fetching users:', error);
-        // If authentication error, redirect to login
+        
         if (error instanceof Error && error.message.includes('Authentication required')) {
           localStorage.removeItem('authToken');
           localStorage.removeItem('user');
@@ -56,7 +60,7 @@ export default function UsersPage() {
     fetchData();
   }, [fetchUsers]);
 
-  // Debug logs
+// Debug logs
   console.log('Users page - users:', users);
   console.log('Users page - isLoading:', isLoading);
   console.log('Users page - error:', error);
@@ -72,7 +76,7 @@ export default function UsersPage() {
     });
   };
 
-  // Get user initials
+  
   const getUserInitials = (name: string) => {
     if (!name) return 'U';
     return name
@@ -82,6 +86,36 @@ export default function UsersPage() {
       .toUpperCase()
       .slice(0, 2);
   };
+
+ 
+  const filteredUsers = users ? users.filter(user => {
+ 
+    const searchMatch = searchTerm === '' || 
+      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.phoneNumber?.includes(searchTerm) ||
+      user.countryCode?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    
+    let statusMatch = true;
+    switch (filterStatus) {
+      case 'active':
+        statusMatch = user.isActive && !user.disabled;
+        break;
+      case 'disabled':
+        statusMatch = user.disabled;
+        break;
+      case 'verified':
+        statusMatch = user.emailVerified;
+        break;
+      case 'all':
+      default:
+        // statusMatch is already true, no need to reassign
+        break;
+    }
+
+    return searchMatch && statusMatch;
+  }) : [];
 
   // Check if user is authenticated for rendering
   const isAuthenticated = () => {
@@ -229,15 +263,82 @@ export default function UsersPage() {
                     <input
                       type="search"
                       placeholder="Search users..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
                       className="font-primary-regular w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <Button variant="outline" size="sm" className="font-primary-medium">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="font-primary-medium"
+                    onClick={() => setShowFilters(!showFilters)}
+                  >
                     <Filter className="h-4 w-4 mr-2" />
                     Filter
                   </Button>
                 </div>
+                
+                {/* Filter Results Info */}
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className="font-primary-regular">
+                    Showing {filteredUsers.length} of {users?.length || 0} users
+                  </span>
+                  {(searchTerm || filterStatus !== 'all') && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setFilterStatus('all');
+                      }}
+                      className="font-primary-medium text-blue-600 hover:text-blue-700"
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
               </div>
+              
+              {/* Filter Options */}
+              {showFilters && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant={filterStatus === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setFilterStatus('all')}
+                      className="font-primary-medium"
+                    >
+                      All Users
+                    </Button>
+                    <Button
+                      variant={filterStatus === 'active' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setFilterStatus('active')}
+                      className="font-primary-medium"
+                    >
+                      Active Only
+                    </Button>
+                    <Button
+                      variant={filterStatus === 'disabled' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setFilterStatus('disabled')}
+                      className="font-primary-medium"
+                    >
+                      Disabled Only
+                    </Button>
+                    <Button
+                      variant={filterStatus === 'verified' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setFilterStatus('verified')}
+                      className="font-primary-medium"
+                    >
+                      Verified Only
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -247,11 +348,18 @@ export default function UsersPage() {
               <CardTitle className="font-primary-semi-bold">All Users</CardTitle>
               <CardDescription className="font-primary-regular">
                 Complete list of registered users
-                {!isLoading && (
-                  <span className="ml-2 text-blue-600">
-                    {users?.length ? `(${users.length} users found)` : '(No users)'}
-                  </span>
-                )}
+                {!isLoading && (() => {
+                  if (!filteredUsers?.length) return <span className="ml-2 text-blue-600">(No users)</span>;
+                  
+                  const isFiltered = searchTerm || filterStatus !== 'all';
+                  const countText = isFiltered ? 'found' : 'total';
+                  
+                  return (
+                    <span className="ml-2 text-blue-600">
+                      ({filteredUsers.length} users {countText})
+                    </span>
+                  );
+                })()}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -298,9 +406,31 @@ export default function UsersPage() {
                   );
                 }
 
+                if (filteredUsers.length === 0 && (searchTerm || filterStatus !== 'all')) {
+                  return (
+                    <div className="text-center py-12">
+                      <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="font-primary-semi-bold text-lg text-gray-900 mb-2">No matching users</h3>
+                      <p className="font-primary-regular text-gray-600 mb-4">
+                        No users match your current search or filter criteria.
+                      </p>
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          setSearchTerm('');
+                          setFilterStatus('all');
+                        }}
+                        className="font-primary-medium"
+                      >
+                        Clear filters
+                      </Button>
+                    </div>
+                  );
+                }
+
                 return (
                   <div className="space-y-4">
-                    {users.map((user, index) => (
+                    {filteredUsers.map((user, index) => (
                       <div key={user.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                         <div className="flex items-center gap-4">
                           <Avatar className="h-12 w-12">
@@ -368,9 +498,7 @@ export default function UsersPage() {
                               </p>
                             )}
                           </div>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          
                         </div>
                       </div>
                     ))}

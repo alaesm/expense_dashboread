@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserIcon, AlertCircle } from 'lucide-react';
 import { useLogin } from '@/lib/hooks';
+import { useToast } from '@/lib/hooks';
 
 export default function LoginPage() {
+  const { showInfo } = useToast();
   const {
     email,
     password,
@@ -66,7 +68,7 @@ export default function LoginPage() {
                 Email Address
               </Label>
               <div className="relative">
-                <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-500 z-10" />
+                <MailIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 z-10" />
                 <Input
                   id="email"
                   type="email"
@@ -85,7 +87,7 @@ export default function LoginPage() {
                 Password
               </Label>
               <div className="relative">
-                <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-500 z-10" />
+                <LockIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 z-10" />
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -98,7 +100,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={togglePasswordVisibility}
-                  className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700 transition-colors duration-200 z-20"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700 transition-colors duration-200 z-20"
                 >
                   {showPassword ? (
                     <EyeOffIcon className="h-4 w-4" />
@@ -150,8 +152,18 @@ export default function LoginPage() {
                 type="button"
                 className="text-blue-600 hover:text-blue-800 font-primary-medium underline bg-transparent border-none cursor-pointer p-0 transition-colors duration-200"
                 onClick={() => {
-                  // Handle contact administrator
-                  alert('Please contact your system administrator to get access.');
+                  showInfo('Contact Administrator', {
+                    description: 'Please reach out to your system administrator to get access to the admin dashboard.',
+                    action: {
+                      label: 'Copy Email',
+                      onClick: () => {
+                        navigator.clipboard.writeText('admin@yourcompany.com');
+                        showInfo('Email copied!', {
+                          description: 'admin@yourcompany.com has been copied to your clipboard',
+                        });
+                      },
+                    }
+                  });
                 }}
               >
                 Contact Administrator

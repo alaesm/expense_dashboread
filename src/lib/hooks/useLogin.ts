@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useErrorHandling } from './useErrorHandling';
+import { useToast } from './useToast';
 
 // Types
 interface LoginResponse {
@@ -62,6 +63,7 @@ const ENDPOINTS = {
 export function useLogin(): UseLoginResult {
   const router = useRouter();
   const { handleAuthError, clearError: clearApiError } = useErrorHandling();
+  const { showSuccess, showError, showWarning } = useToast();
   
   // Form state
   const [email, setEmail] = useState('');
@@ -85,22 +87,31 @@ export function useLogin(): UseLoginResult {
   // Validation helper
   const validateCredentials = useCallback(() => {
     if (!email.trim()) {
+      showWarning('Email required', {
+        description: 'Please enter your email address to continue',
+      });
       setError('Email is required');
       return false;
     }
     
     if (!password.trim()) {
+      showWarning('Password required', {
+        description: 'Please enter your password to continue',
+      });
       setError('Password is required');
       return false;
     }
     
     if (!isValidEmail(email)) {
+      showWarning('Invalid email format', {
+        description: 'Please enter a valid email address',
+      });
       setError('Please enter a valid email address');
       return false;
     }
 
     return true;
-  }, [email, password]);
+  }, [email, password, showWarning]);
 
   // Login handler
   const performLogin = useCallback(async () => {
@@ -136,26 +147,70 @@ export function useLogin(): UseLoginResult {
         localStorage.removeItem('lastEmail');
       }
     }
-  }, [email, rememberMe]);
+
+    // Show success toast
+    showSuccess('Login successful!', {
+      description: `Welcome back, ${admin.name}! Redirecting to dashboard...`,
+      action: {
+        label: 'Go to Dashboard',
+        onClick: () => router.push('/dashboard'),
+      }
+    });
+  }, [email, rememberMe, showSuccess, router]);
 
   // Error handler
   const handleLoginError = useCallback((err: unknown) => {
+    let errorMessage = 'An unexpected error occurred. Please try again.';
+    let errorDescription = '';
+
     if (err instanceof Error) {
       if (err.message.includes('fetch') || err.message.includes('network')) {
+        errorMessage = 'Connection failed';
+        errorDescription = 'Unable to connect to server. Please check your internet connection and try again.';
         setError('Unable to connect to server. Please check your connection.');
-      } else if (err.message.includes('401') || err.message.includes('Unauthorized')) {
+      } else if (err.message.includes('401') || err.message.includes('Unauthorized') || err.message.includes('Invalid credentials')) {
+        errorMessage = 'Invalid credentials';
+        errorDescription = 'The email or password you entered is incorrect. Please double-check your credentials and try again.';
         setError('Invalid email or password. Please try again.');
       } else if (err.message.includes('400') || err.message.includes('Bad Request')) {
+        errorMessage = 'Invalid request';
+        errorDescription = 'Please check your login credentials and try again.';
         setError('Please check your login credentials.');
+      } else if (err.message.includes('403') || err.message.includes('Forbidden')) {
+        errorMessage = 'Account access denied';
+        errorDescription = 'Your account may be disabled or you do not have permission to access this system.';
+        setError('Access denied. Please contact your administrator.');
+      } else if (err.message.includes('500') || err.message.includes('Internal Server Error')) {
+        errorMessage = 'Server error';
+        errorDescription = 'There is a problem with our servers. Please try again in a few minutes.';
+        setError('Server error. Please try again later.');
       } else {
+        errorMessage = 'Login failed';
+        errorDescription = err.message || 'Please check your credentials and try again.';
         setError(err.message || 'Login failed. Please try again.');
       }
     } else {
       setError('An unexpected error occurred. Please try again.');
     }
+
+    // Show error toast
+    showError(errorMessage, {
+      description: errorDescription,
+      action: {
+        label: 'Retry',
+        onClick: () => {
+          clearError();
+          // Focus on email field for retry
+          setTimeout(() => {
+            const emailInput = document.getElementById('email');
+            if (emailInput) emailInput.focus();
+          }, 100);
+        },
+      }
+    });
     
     handleAuthError(err);
-  }, [handleAuthError]);
+  }, [handleAuthError, showError, clearError]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();

@@ -310,10 +310,10 @@ Content-Type: application/json
 
 ---
 
-### 9. Delete Admin by ID
+### 9. Delete Admin Account
 
 **Endpoint:** `DELETE /api/admin/:id`  
-**Description:** Delete specific admin account (Super Admin only)  
+**Description:** Permanently delete an admin account by ID. Super admin can delete any admin including other super admins.  
 **Authentication:** Required (Super Admin)
 
 **Request Headers:**
@@ -322,13 +322,45 @@ Authorization: Bearer <your-jwt-token>
 ```
 
 **URL Parameters:**
-- `id` (string): Admin document ID
+- `id` (string): The admin ID to delete
+
+**Features:**
+- ✅ Self-deletion prevention
+- ✅ Role validation (super admin only)
+- ✅ Audit logging for super admin deletions
+- ✅ Detailed response with deleted admin info
 
 **Success Response (200):**
 ```json
 {
   "status": "success",
-  "message": "Admin deleted successfully"
+  "message": "Admin account \"John Doe\" (john@example.com) with role \"admin\" has been deleted successfully"
+}
+```
+
+**Error Responses:**
+
+**Cannot Delete Own Account (400):**
+```json
+{
+  "status": "error",
+  "message": "Cannot delete your own account"
+}
+```
+
+**Insufficient Permissions (403):**
+```json
+{
+  "status": "error",
+  "message": "Only super admin can delete admin accounts"
+}
+```
+
+**Admin Not Found (404):**
+```json
+{
+  "status": "error",
+  "message": "Admin not found"
 }
 ```
 

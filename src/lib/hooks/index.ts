@@ -2,6 +2,7 @@
 export { useLogin } from './useLogin';
 export { useLogout } from './useLogout';
 export { useErrorHandling } from './useErrorHandling';
+export { useToast } from './useToast';
 
 // User management hooks
 export { useUsers } from './useUsers';

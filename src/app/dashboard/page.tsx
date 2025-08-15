@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout';
 import { StatsCard } from '@/components/common';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,27 +12,35 @@ import {
 } from '@/lib/hooks';
 import { 
   Users, 
-  ShoppingCart, 
   DollarSign, 
   TrendingUp,
   Calendar,
-  BarChart3,
   Globe,
   CreditCard,
   Loader2
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  // Check authentication immediately
+  // State to track if component is mounted (client-side)
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Set mounted state on client
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-    const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+    setIsMounted(true);
+  }, []);
+
+  // Check authentication immediately (only on client)
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    const token = localStorage.getItem('authToken');
+    const user = localStorage.getItem('user');
     
     if (!token || !user) {
       console.log('No authentication found, redirecting to login...');
       window.location.href = '/login';
     }
-  }, []);
+  }, [isMounted]);
 
   // Use real hooks for data
   const { totalUsers, isLoading: isLoadingUsers, error: usersError, fetchUsersCount } = useUsersCount();
@@ -42,10 +50,12 @@ export default function DashboardPage() {
 
   // Fetch data on component mount
   useEffect(() => {
+    if (!isMounted) return;
+    
     const fetchAllData = async () => {
       // Check if user is authenticated
-      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-      const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      const token = localStorage.getItem('authToken');
+      const user = localStorage.getItem('user');
       
       // Only fetch if we have both token and user data
       if (token && user) {
@@ -77,7 +87,7 @@ export default function DashboardPage() {
     };
 
     fetchAllData();
-  }, [fetchUsersCount, fetchCountryAnalytics, fetchCurrencyAnalytics, fetchAnalytics]);
+  }, [fetchUsersCount, fetchCountryAnalytics, fetchCurrencyAnalytics, fetchAnalytics, isMounted]);
 
   // Calculate growth rate for display
   const growthRate = userAnalytics?.totalUsers ? 
@@ -85,12 +95,12 @@ export default function DashboardPage() {
 
   // Check if user is authenticated for rendering
   const isAuthenticated = () => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('authToken');
-      const user = localStorage.getItem('user');
-      return token && user;
+    if (!isMounted) {
+      return true; // Return true during SSR to prevent flash, will be checked on client
     }
-    return false;
+    const token = localStorage.getItem('authToken');
+    const user = localStorage.getItem('user');
+    return token && user;
   };
 
   // If not authenticated, show login prompt
@@ -349,34 +359,6 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Quick Actions */}
-          <Card className="bg-white/90 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="font-primary-semi-bold">Quick Actions</CardTitle>
-              <CardDescription className="font-primary-regular">
-                Common administrative tasks
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { id: 'add-user', title: 'Add User', description: 'Create a new user account', icon: Users },
-                  { id: 'view-reports', title: 'View Reports', description: 'Generate analytics reports', icon: BarChart3 },
-                  { id: 'manage-orders', title: 'Manage Orders', description: 'Process pending orders', icon: ShoppingCart }
-                ].map((action) => (
-                  <button
-                    key={action.id}
-                    className="p-4 text-left rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
-                  >
-                    <action.icon className="h-6 w-6 text-blue-600 mb-2" />
-                    <h3 className="font-primary-medium text-gray-900">{action.title}</h3>
-                    <p className="font-primary-regular text-sm text-gray-600 mt-1">{action.description}</p>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </DashboardLayout>
     </div>

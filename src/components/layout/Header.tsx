@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   DropdownMenu, 
@@ -13,7 +12,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Bell, Search, Settings, LogOut, User } from 'lucide-react';
+import {  LogOut, User } from 'lucide-react';
 import { useAdminProfile, useLogout } from '@/lib/hooks';
 
 export function Header() {
@@ -43,33 +42,10 @@ export function Header() {
   };
   return (
     <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-sm">
-      <div className="flex h-16 items-center justify-between px-6">
-        {/* Left side - Search */}
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder="Search..."
-              className="font-primary-regular pl-10 pr-4 py-2 w-64 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-        </div>
-
+      <div className="flex h-16 items-center justify-end px-6">
         {/* Right side - Actions & Profile */}
         <div className="flex items-center gap-4">
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <Badge className="font-primary-medium absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs">
-              3
-            </Badge>
-          </Button>
-
-          {/* Settings */}
-          <Button variant="ghost" size="icon">
-            <Settings className="h-5 w-5" />
-          </Button>
+          
 
           {/* Profile Dropdown */}
           <DropdownMenu>
@@ -96,20 +72,15 @@ export function Header() {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/profile" className="font-primary-regular cursor-pointer">
+                <Link href="/dashboard/profile" className="font-primary-regular cursor-pointer">
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/settings" className="font-primary-regular cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </Link>
-              </DropdownMenuItem>
+             
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                className="font-primary-regular cursor-pointer"
+                className="font-primary-regular cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50 focus:bg-red-50 focus:text-red-700"
                 onClick={handleLogout}
                 disabled={isLoggingOut}
               >

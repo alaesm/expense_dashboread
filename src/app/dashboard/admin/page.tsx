@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAdmins } from '@/lib/hooks';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { useAdmins, useToast } from '@/lib/hooks';
 import { 
   Shield, 
   Search, 
@@ -23,13 +24,21 @@ import {
   UserCheck,
   UserX,
   Crown,
-  Settings
+  Settings,
+  Trash2,
+  UserMinus,
+  UserPlus
 } from 'lucide-react';
 
 export default function AdminPage() {
-  const { admins, isLoading, error, fetchAdmins, createAdmin } = useAdmins();
+  const { admins, isLoading, error, fetchAdmins, createAdmin, updateAdmin, deleteAdmin } = useAdmins();
+  const { showSuccess, showWarning, showInfo } = useToast();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -42,6 +51,20 @@ export default function AdminPage() {
     fetchAdmins();
   }, [fetchAdmins]);
 
+  // Show welcome toast when admins are first loaded
+  useEffect(() => {
+    if (admins && admins.length > 0 && !isLoading && !error) {
+      // Only show this once when admins are initially loaded
+      const hasShownWelcome = sessionStorage.getItem('adminPageWelcomeShown');
+      if (!hasShownWelcome) {
+        showInfo('Admin Dashboard', {
+          description: `Managing ${admins.length} administrator account${admins.length !== 1 ? 's' : ''}`,
+        });
+        sessionStorage.setItem('adminPageWelcomeShown', 'true');
+      }
+    }
+  }, [admins, isLoading, error, showInfo]);
+
   // Handle form input changes
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -53,8 +76,33 @@ export default function AdminPage() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.email.trim() || !formData.password.trim()) {
-      alert('Please fill in all required fields');
+    
+    // Validation with toast warnings
+    if (!formData.name.trim()) {
+      showWarning('Name required', {
+        description: 'Please enter the administrator\'s full name',
+      });
+      return;
+    }
+    
+    if (!formData.email.trim()) {
+      showWarning('Email required', {
+        description: 'Please enter a valid email address',
+      });
+      return;
+    }
+    
+    if (!formData.password.trim()) {
+      showWarning('Password required', {
+        description: 'Please enter a secure password for the admin account',
+      });
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      showWarning('Password too short', {
+        description: 'Password must be at least 6 characters long',
+      });
       return;
     }
 
@@ -71,10 +119,13 @@ export default function AdminPage() {
       // Reset form and close modal
       setFormData({ name: '', email: '', password: '', role: 'admin', isActive: true });
       setIsAddModalOpen(false);
-      alert('Admin added successfully!');
+      
+      // Success toast is already shown by the useAdmins hook
+      // No need to show additional success message here
     } catch (error) {
       console.error('Error adding admin:', error);
-      alert('Failed to add admin. Please try again.');
+      // Error toast is already shown by the useAdmins hook
+      // No need to show additional error message here
     } finally {
       setIsSubmitting(false);
     }
@@ -145,6 +196,74 @@ export default function AdminPage() {
     }
   };
 
+  // Handle delete admin
+  const handleDeleteAdmin = async (adminId: string, adminName: string) => {
+    try {
+      showWarning('Confirm Delete', {
+        description: `Are you sure you want to delete ${adminName}? This action cannot be undone.`,
+        action: {
+          label: 'Delete',
+          onClick: () => {
+            void deleteAdmin(adminId);
+          },
+        }
+      });
+    } catch (error) {
+      console.error('Error deleting admin:', error);
+    }
+  };
+
+  // Handle activate/deactivate admin
+  const handleToggleAdminStatus = async (adminId: string, currentStatus: boolean, adminName: string) => {
+    try {
+      const action = currentStatus ? 'deactivate' : 'activate';
+      const newStatus = !currentStatus;
+      
+      showInfo(`${action === 'activate' ? 'Activate' : 'Deactivate'} Admin`, {
+        description: `Are you sure you want to ${action} ${adminName}?`,
+        action: {
+          label: action === 'activate' ? 'Activate' : 'Deactivate',
+          onClick: () => {
+            void (async () => {
+              await updateAdmin(adminId, { isActive: newStatus });
+              showSuccess(`Admin ${action}d`, {
+                description: `${adminName} has been ${action}d successfully`,
+              });
+            })();
+          },
+        }
+      });
+    } catch (error) {
+      console.error('Error updating admin status:', error);
+    }
+  };
+
+  // Filter and search logic
+  const filteredAdmins = admins?.filter(admin => {
+    const matchesSearch = !searchQuery || 
+      admin.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      admin.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      admin.role?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesRole = filterRole === 'all' || admin.role === filterRole;
+    
+    const matchesStatus = filterStatus === 'all' || 
+      (filterStatus === 'active' && admin.isActive) ||
+      (filterStatus === 'inactive' && !admin.isActive);
+    
+    return matchesSearch && matchesRole && matchesStatus;
+  }) || [];
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchQuery('');
+    setFilterRole('all');
+    setFilterStatus('all');
+    showInfo('Filters cleared', {
+      description: 'All search and filter criteria have been reset',
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-300">
@@ -169,7 +288,15 @@ export default function AdminPage() {
               <div className="text-red-500 mb-2">⚠️</div>
               <h2 className="font-primary-semi-bold text-lg text-gray-800 mb-2">Error Loading Administrators</h2>
               <p className="font-primary-regular text-gray-600 mb-4">{error}</p>
-              <Button onClick={() => fetchAdmins()} className="font-primary-medium">
+              <Button 
+                onClick={() => {
+                  showInfo('Retrying...', {
+                    description: 'Attempting to reload administrator data',
+                  });
+                  fetchAdmins();
+                }} 
+                className="font-primary-medium"
+              >
                 Retry
               </Button>
             </div>
@@ -189,7 +316,14 @@ export default function AdminPage() {
               <h1 className="font-primary-bold text-4xl md:text-5xl lg:text-6xl text-gray-900">Admin</h1>
               <p className="font-primary-regular text-gray-600 mt-2">Manage administrator accounts and permissions</p>
             </div>
-            <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+            <Dialog open={isAddModalOpen} onOpenChange={(open) => {
+              setIsAddModalOpen(open);
+              if (open) {
+                showInfo('Add Administrator', {
+                  description: 'Fill out the form below to create a new admin account',
+                });
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="font-primary-medium">
                   <Plus className="h-4 w-4 mr-2" />
@@ -268,7 +402,12 @@ export default function AdminPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setIsAddModalOpen(false)}
+                      onClick={() => {
+                        setIsAddModalOpen(false);
+                        showInfo('Form cancelled', {
+                          description: 'No administrator was added',
+                        });
+                      }}
                       className="font-primary-medium"
                     >
                       Cancel
@@ -365,13 +504,99 @@ export default function AdminPage() {
                     <input
                       type="search"
                       placeholder="Search administrators..."
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        if (e.target.value.trim()) {
+                          showInfo('Searching...', {
+                            description: `Searching for "${e.target.value}"`,
+                          });
+                        }
+                      }}
                       className="font-primary-regular w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <Button variant="outline" size="sm" className="font-primary-medium">
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filter
-                  </Button>
+                  <DropdownMenu open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="font-primary-medium">
+                        <Filter className="h-4 w-4 mr-2" />
+                        Filter
+                        {(filterRole !== 'all' || filterStatus !== 'all') && (
+                          <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
+                            {(filterRole !== 'all' ? 1 : 0) + (filterStatus !== 'all' ? 1 : 0)}
+                          </Badge>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64 p-4">
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="font-primary-medium text-sm">Role</Label>
+                          <Select value={filterRole} onValueChange={setFilterRole}>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="All roles" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Roles</SelectItem>
+                              <SelectItem value="super_admin">Super Administrator</SelectItem>
+                              <SelectItem value="admin">Administrator</SelectItem>
+                              <SelectItem value="moderator">Moderator</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="font-primary-medium text-sm">Status</Label>
+                          <Select value={filterStatus} onValueChange={setFilterStatus}>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="All statuses" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Statuses</SelectItem>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-between pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={clearFilters}
+                            className="font-primary-medium"
+                          >
+                            Clear All
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setIsFilterOpen(false);
+                              showSuccess('Filters applied', {
+                                description: `Showing ${filteredAdmins.length} of ${admins?.length || 0} administrators`,
+                              });
+                            }}
+                            className="font-primary-medium"
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className="font-primary-regular">
+                    Showing {filteredAdmins.length} of {admins?.length || 0} administrators
+                  </span>
+                  {(searchQuery || filterRole !== 'all' || filterStatus !== 'all') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="font-primary-medium text-xs h-6 px-2"
+                    >
+                      Clear all
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -386,24 +611,53 @@ export default function AdminPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {!admins || admins.length === 0 ? (
-                <div className="text-center py-12">
-                  <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="font-primary-semi-bold text-lg text-gray-900 mb-2">No administrators found</h3>
-                  <p className="font-primary-regular text-gray-600 mb-4">
-                    Get started by adding your first administrator to the system.
-                  </p>
-                  <Button 
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="font-primary-medium"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add First Admin
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {admins.map((admin, index) => (
+              {(() => {
+                if (!admins || admins.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="font-primary-semi-bold text-lg text-gray-900 mb-2">No administrators found</h3>
+                      <p className="font-primary-regular text-gray-600 mb-4">
+                        Get started by adding your first administrator to the system.
+                      </p>
+                      <Button 
+                        onClick={() => {
+                          showInfo('Opening admin creation', {
+                            description: 'Fill out the form to add your first administrator',
+                          });
+                          setIsAddModalOpen(true);
+                        }}
+                        className="font-primary-medium"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add First Admin
+                      </Button>
+                    </div>
+                  );
+                }
+                
+                if (filteredAdmins.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="font-primary-semi-bold text-lg text-gray-900 mb-2">No administrators match your criteria</h3>
+                      <p className="font-primary-regular text-gray-600 mb-4">
+                        Try adjusting your search terms or filters to find what you&apos;re looking for.
+                      </p>
+                      <Button 
+                        onClick={clearFilters}
+                        variant="outline"
+                        className="font-primary-medium"
+                      >
+                        Clear Filters
+                      </Button>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div className="space-y-4">
+                    {filteredAdmins.map((admin, index) => (
                     <div key={admin.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-center gap-4">
                         <Avatar className="h-12 w-12">
@@ -453,14 +707,45 @@ export default function AdminPage() {
                             Created {formatDate(admin.createdAt)}
                           </p>
                         </div>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem
+                              onClick={() => void handleToggleAdminStatus(admin.id, admin.isActive, admin.name || 'Admin')}
+                              className="font-primary-regular"
+                            >
+                              {admin.isActive ? (
+                                <>
+                                  <UserMinus className="h-4 w-4 mr-2 text-orange-600" />
+                                  Deactivate Admin
+                                </>
+                              ) : (
+                                <>
+                                  <UserPlus className="h-4 w-4 mr-2 text-green-600" />
+                                  Activate Admin
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => void handleDeleteAdmin(admin.id, admin.name || 'Admin')}
+                              className="font-primary-regular text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Admin
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
@@ -499,6 +784,41 @@ export default function AdminPage() {
                 ].map((action) => (
                   <button
                     key={action.id}
+                    onClick={() => {
+                      switch (action.id) {
+                        case 'permissions':
+                          showInfo('Permissions Management', {
+                            description: 'This feature will allow you to configure role-based access control',
+                            action: {
+                              label: 'Coming Soon',
+                              onClick: () => {},
+                            }
+                          });
+                          break;
+                        case 'audit-logs':
+                          showInfo('Audit Logs', {
+                            description: 'This feature will show system activity and admin actions',
+                            action: {
+                              label: 'Coming Soon',
+                              onClick: () => {},
+                            }
+                          });
+                          break;
+                        case 'security':
+                          showInfo('Security Settings', {
+                            description: 'This feature will allow you to configure authentication and security',
+                            action: {
+                              label: 'Coming Soon',
+                              onClick: () => {},
+                            }
+                          });
+                          break;
+                        default:
+                          showInfo('Feature Coming Soon', {
+                            description: 'This feature is currently under development',
+                          });
+                      }
+                    }}
                     className="p-4 text-left rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
                   >
                     <action.icon className={`h-6 w-6 ${action.color} mb-2`} />

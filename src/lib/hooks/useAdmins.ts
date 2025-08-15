@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useErrorHandling } from './useErrorHandling';
+import { useToast } from './useToast';
 
 // Types
 interface Admin {
@@ -69,6 +70,7 @@ const ENDPOINTS = {
 
 export function useAdmins(): UseAdminsResult {
   const { handleApiError, clearError: clearApiError } = useErrorHandling();
+  const { showSuccess, showError } = useToast();
   
   // State
   const [admins, setAdmins] = useState<Admin[]>([]);
@@ -115,6 +117,15 @@ export function useAdmins(): UseAdminsResult {
         throw new Error(response.message || response.error || 'Failed to create admin');
       }
 
+      // Show success toast
+      showSuccess('Admin created successfully!', {
+        description: `${response.data.name} (${response.data.email}) has been added as ${response.data.role}`,
+        action: {
+          label: 'View Admin',
+          onClick: () => console.log('View admin:', response.data?.id),
+        }
+      });
+
       // Refresh the list
       await fetchAdmins();
       
@@ -123,12 +134,22 @@ export function useAdmins(): UseAdminsResult {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create admin';
       setError(errorMessage);
+      
+      // Show error toast
+      showError('Failed to create admin', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => void createAdmin(data),
+        }
+      });
+      
       handleApiError(err);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [clearError, handleApiError, fetchAdmins]);
+  }, [clearError, handleApiError, fetchAdmins, showSuccess, showError]);
 
   // Update admin
   const updateAdmin = useCallback(async (id: string, data: UpdateAdminRequest): Promise<Admin> => {
@@ -142,6 +163,15 @@ export function useAdmins(): UseAdminsResult {
         throw new Error(response.message || response.error || 'Failed to update admin');
       }
 
+      // Show success toast
+      showSuccess('Admin updated successfully!', {
+        description: `${response.data.name}'s account has been updated`,
+        action: {
+          label: 'View Changes',
+          onClick: () => console.log('View admin changes:', response.data?.id),
+        }
+      });
+
       // Refresh the list
       await fetchAdmins();
       
@@ -150,12 +180,22 @@ export function useAdmins(): UseAdminsResult {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update admin';
       setError(errorMessage);
+      
+      // Show error toast
+      showError('Failed to update admin', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => void updateAdmin(id, data),
+        }
+      });
+      
       handleApiError(err);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [clearError, handleApiError, fetchAdmins]);
+  }, [clearError, handleApiError, fetchAdmins, showSuccess, showError]);
 
   // Delete admin
   const deleteAdmin = useCallback(async (id: string): Promise<void> => {
@@ -163,24 +203,78 @@ export function useAdmins(): UseAdminsResult {
     clearError();
 
     try {
+      // Get admin details before deletion for the success message
+      const adminToDelete = admins.find(admin => admin.id === id);
+      
       const response = await api.delete(ENDPOINTS.ADMIN_BY_ID(id));
       
       if (response.status !== "success") {
         throw new Error(response.message || response.error || 'Failed to delete admin');
       }
 
-      // Refresh the list
+      // Show success toast with admin details
+      const adminName = adminToDelete?.name || 'Admin';
+      const adminEmail = adminToDelete?.email || '';
+      const adminRole = adminToDelete?.role || 'admin';
+      
+      showSuccess('Admin deleted successfully!', {
+        description: `Admin account "${adminName}" (${adminEmail}) with role "${adminRole}" has been deleted`,
+        action: {
+          label: 'View Logs',
+          onClick: () => console.log('View deletion logs for admin:', id),
+        }
+      });
+
+      // Refresh the list to reflect changes
       await fetchAdmins();
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to delete admin';
+      let errorMessage = 'Failed to delete admin';
+      
+      if (err instanceof Error) {
+        // Handle specific error cases
+        if (err.message.includes('Cannot delete your own account')) {
+          errorMessage = 'Cannot delete your own account';
+          showError('Self-deletion prevented', {
+            description: 'You cannot delete your own admin account for security reasons',
+          });
+        } else if (err.message.includes('Only super admin can delete')) {
+          errorMessage = 'Only super admin can delete admin accounts';
+          showError('Insufficient permissions', {
+            description: 'Only super administrators can delete admin accounts',
+          });
+        } else if (err.message.includes('Admin not found')) {
+          errorMessage = 'Admin not found';
+          showError('Admin not found', {
+            description: 'The admin account you are trying to delete no longer exists',
+          });
+        } else {
+          errorMessage = err.message;
+          showError('Failed to delete admin', {
+            description: errorMessage,
+            action: {
+              label: 'Retry',
+              onClick: () => void deleteAdmin(id),
+            }
+          });
+        }
+      } else {
+        showError('Failed to delete admin', {
+          description: errorMessage,
+          action: {
+            label: 'Retry',
+            onClick: () => void deleteAdmin(id),
+          }
+        });
+      }
+      
       setError(errorMessage);
       handleApiError(err);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [clearError, handleApiError, fetchAdmins]);
+  }, [clearError, handleApiError, fetchAdmins, admins, showSuccess, showError]);
 
   // Refresh admins
   const refreshAdmins = useCallback(async () => {
@@ -204,6 +298,7 @@ export function useAdmins(): UseAdminsResult {
 
 export function useAdminProfile(): UseAdminProfileResult {
   const { handleApiError, clearError: clearApiError } = useErrorHandling();
+  const { showSuccess, showError } = useToast();
   
   // State
   const [profile, setProfile] = useState<Admin | null>(null);
@@ -232,11 +327,21 @@ export function useAdminProfile(): UseAdminProfileResult {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch profile';
       setError(errorMessage);
+      
+      // Show error toast for profile fetch failures
+      showError('Failed to load profile', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => void fetchProfile(),
+        }
+      });
+      
       handleApiError(err);
     } finally {
       setIsLoading(false);
     }
-  }, [clearError, handleApiError]);
+  }, [clearError, handleApiError, showError]);
 
   // Update profile
   const updateProfile = useCallback(async (data: UpdateProfileRequest): Promise<Admin> => {
@@ -252,17 +357,36 @@ export function useAdminProfile(): UseAdminProfileResult {
 
       setProfile(response.data);
       
+      // Show success toast
+      showSuccess('Profile updated successfully!', {
+        description: `Your profile information has been updated`,
+        action: {
+          label: 'View Profile',
+          onClick: () => console.log('View profile:', response.data?.id),
+        }
+      });
+      
       return response.data;
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update profile';
       setError(errorMessage);
+      
+      // Show error toast
+      showError('Failed to update profile', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => void updateProfile(data),
+        }
+      });
+      
       handleApiError(err);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [clearError, handleApiError]);
+  }, [clearError, handleApiError, showSuccess, showError]);
 
   // Refresh profile
   const refreshProfile = useCallback(async () => {
